@@ -24,9 +24,11 @@ def is_cursor_in_image(x):
 
 
 def is_cursor_in_circle(x, y):
-    if is_cursor_in_image(x):
-        return False
-    return True
+    global g_side_pan_circle_positions
+    for x1, y1, x2, y2 in g_side_pan_circle_positions:
+        if x1 <= x <= x2 and y1 <= y <= y2:
+            return True
+    return False
 
 
 def show_cursor_color(cur_x, cur_y):
@@ -55,6 +57,23 @@ def set_circle_to_side_pan_and_save_label(cur_x, cur_y):
     cv2.imshow(g_win_name, g_raw)
 
 
+def get_circle_index_at_cursor(cur_x, cur_y):
+    global g_side_pan_circle_positions
+    for circle_index, p in enumerate(g_side_pan_circle_positions):
+        x1, y1, x2, y2 = p
+        if x1 <= cur_x <= x2 and y1 <= cur_y <= y2:
+            return circle_index
+    return -1
+
+
+def hover(circle_index):
+    global g_side_pan_circle_positions
+    x1, y1, x2, y2 = g_side_pan_circle_positions[circle_index]
+    raw_copy = g_raw.copy()
+    cv2.rectangle(raw_copy, (x1, y1), (x2, y2), (0, 0, 255), thickness=2)
+    cv2.imshow(g_win_name, raw_copy)
+
+
 def mouse_callback(event, cur_x, cur_y, flag, _):
     global g_raw
 
@@ -62,6 +81,9 @@ def mouse_callback(event, cur_x, cur_y, flag, _):
     if event == 0 and flag == 0:
         if is_cursor_in_image(cur_x):
             show_cursor_color(cur_x, cur_y)
+        elif is_cursor_in_circle(cur_x, cur_y):
+            circle_index_at_cursor = get_circle_index_at_cursor(cur_x, cur_y)
+            hover(circle_index_at_cursor)
         else:
             cv2.imshow(g_win_name, g_raw)
 
@@ -155,9 +177,18 @@ def get_g_side_pan_circle_positions():
         print('not implemented : g_max_num_circles > 2')
         exit(0)
     cys = np.asarray(cys) * g_win_size[1]
+
+    cx = g_side_pan_circle_cx
     cys = cys.astype('int32')
-    cys = list(cys)
-    return cys
+
+    positions = []
+    for cy in cys:
+        x1 = int(cx - g_side_pan_circle_radius)
+        y1 = int(cy - g_side_pan_circle_radius)
+        x2 = int(cx + g_side_pan_circle_radius)
+        y2 = int(cy + g_side_pan_circle_radius)
+        positions.append([x1, y1, x2, y2])
+    return positions
 
 
 path = ''
