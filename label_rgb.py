@@ -47,13 +47,17 @@ def show_cursor_color(cur_x, cur_y):
     cv2.imshow(g_win_name, g_view_copy)
 
 
+def convert_bgr_to_label_str(bgr, confidence):
+    b, g, r = bgr
+    return f'{confidence:.1f} {r:.6f} {g:.6f} {b:.6f}\n'
+
+
 def set_circle_to_side_pan_and_save_label(cur_x, cur_y):
-    global g_view
+    global g_view, g_label_lines
     bgr = g_view[cur_y][cur_x] / 255.0
-    rgb = [bgr[2], bgr[1], bgr[0]]
     circle_index = get_next_circle_index()
-    g_view = set_circle_to_side_pan(g_view, rgb, circle_index)
-    save_label(g_label_path, rgb, circle_index)
+    g_view = set_circle_to_side_pan(g_view, bgr, circle_index)
+    g_label_lines[circle_index] = convert_bgr_to_label_str(bgr, 1.0)
     cv2.imshow(g_win_name, g_view)
 
 
@@ -74,20 +78,15 @@ def hover(circle_index):
     cv2.imshow(g_win_name, g_view_copy)
 
 
-def cover(view, default_image, position):
-    x1, y1, x2, y2 = position
-    for y in range(y1, y2):
-        for x in range(x1, x2):
-            view[y][x] = default_image[y - y1][x - x1]
-    return view
-
-
 def remove_circle_if_exist(circle_index):
-    global g_side_pan_circle_positions, g_raw, g_view, g_circle_index, g_win_name
+    global g_side_pan_circle_positions, g_raw, g_view, g_circle_index, g_win_name, g_label_lines
     circle_position = g_side_pan_circle_positions[circle_index]
     x1, y1, x2, y2 = circle_position
     default_image = g_raw[y1:y2, x1:x2]
-    g_view = cover(g_view, default_image, circle_position)
+    for y in range(y1, y2):
+        for x in range(x1, x2):
+            g_view[y][x] = default_image[y - y1][x - x1]
+    g_label_lines[circle_index] = convert_bgr_to_label_str([0, 0, 0], 0.0)
     g_circle_index = circle_index - 1
     cv2.imshow(g_win_name, g_view)
 
@@ -109,12 +108,14 @@ def mouse_callback(event, cur_x, cur_y, flag, _):
     elif event == 4 and flag == 0:
         if is_cursor_in_image(cur_x):
             set_circle_to_side_pan_and_save_label(cur_x, cur_y)
+            save_label()
 
     # right click
     elif event == 5 and flag == 0:
         if is_cursor_in_circle(cur_x, cur_y):
             circle_index_at_cursor = get_circle_index_at_cursor(cur_x, cur_y)
             remove_circle_if_exist(circle_index_at_cursor)
+            save_label()
 
 
 def side_pan():
@@ -135,33 +136,21 @@ def side_pan():
     return pan
 
 
-def save_label(label_path, rgb, circle_index):
-    # confidence, r, g, b = rgb
-    r, g, b = rgb
-    label_str = f'{r:.6f} {g:.6f} {b:.6f}\n'
-    if not (os.path.exists(label_path) and os.path.isfile(label_path)):
-        with open(label_path, 'wt') as f:
-            f.writelines(label_str)
-        return
-
-    with open(label_path, 'rt') as f:
-        lines = f.readlines()
-
-    if circle_index < len(lines):
-        lines[circle_index] = label_str
-    else:
-        lines.append(label_str)
-
-    with open(label_path, 'wt') as f:
-        f.writelines(lines)
+def save_label():
+    global g_label_path, g_label_lines
+    label_str = ''
+    for label_line in g_label_lines:
+        label_str += label_line
+    with open(g_label_path, 'wt') as f:
+        f.writelines(label_str)
 
 
-def set_circle_to_side_pan(img, rgb, circle_index):
+def set_circle_to_side_pan(img, bgr, circle_index):
     global g_label_path
-    r, g, b = rgb
-    r = int(r * 255)
-    g = int(g * 255)
+    b, g, r = bgr
     b = int(b * 255)
+    g = int(g * 255)
+    r = int(r * 255)
     if circle_index == 0:
         circle_cy = int(g_win_size[1] * 0.2)
         img = cv2.circle(img, (g_side_pan_circle_cx, circle_cy), g_side_pan_circle_radius, (b, g, r), thickness=-1)
@@ -178,7 +167,7 @@ def load_saved_rgbs_if_exist(label_path):
         with open(label_path, 'rt') as f:
             lines = f.readlines()
         for line in lines:
-            r, g, b = list(map(float, line.replace('\n', '').split()))
+            confidence, r, g, b = list(map(float, line.replace('\n', '').split()))
             rgbs.append([r, g, b])
         return rgbs
     else:
@@ -210,6 +199,15 @@ def get_g_side_pan_circle_positions():
     return positions
 
 
+def get_label_lines(label_path):
+    if os.path.exists(label_path) and os.path.isfile(label_path):
+        with open(label_path, 'rt') as f:
+            return f.readlines()
+    else:
+        empty_label_str = '0.0 0.000000 0.000000 0.000000\n'
+        return [empty_label_str for _ in range(g_max_num_circles)]
+
+
 path = ''
 if len(sys.argv) > 1:
     path = sys.argv[1].replace('\\', '/') + '/'
@@ -233,6 +231,7 @@ while True:
     g_circle_index = -1
     file_path = img_paths[index]
     g_label_path = f'{file_path[:-4]}.txt'
+    g_label_lines = get_label_lines(g_label_path)
     g_raw = cv2.imread(file_path, cv2.IMREAD_COLOR)
     g_raw = cv2.resize(g_raw, g_win_size)
     g_raw = np.concatenate((g_raw, g_side_pan), axis=1)
