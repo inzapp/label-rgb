@@ -141,7 +141,8 @@ def save_label():
 
 def update_side_pan():
     global g_raw, g_view, g_label_lines, g_side_pan_circle_cys, g_side_pan_circle_positions
-    for circle_index, label_line in enumerate(g_label_lines):
+    for circle_index in range(g_max_num_circles):
+        label_line = g_label_lines[circle_index]
         confidence, r, g, b = list(map(float, label_line.split()))
         if confidence == 1.0:
             r = int(r * 255)
@@ -190,6 +191,8 @@ def get_g_side_pan_circle_cys():
         cys = [0.5]
     elif g_max_num_circles == 2:
         cys = [0.2, 0.8]
+    elif g_max_num_circles == 3:
+        cys = [0.2, 0.5, 0.8]
     else:
         print(f'not implemented. g_max_num_circles = {g_max_num_circles}')
         exit(0)
@@ -201,7 +204,12 @@ def get_g_side_pan_circle_cys():
 def get_label_lines(label_path):
     if os.path.exists(label_path) and os.path.isfile(label_path):
         with open(label_path, 'rt') as f:
-            return f.readlines()
+            label_lines = f.readlines()
+        if len(label_lines) < g_max_num_circles:
+            empty_label_str = convert_bgr_to_label_str([0, 0, 0], 0)
+            for _ in range(g_max_num_circles - len(label_lines)):
+                label_lines.append(empty_label_str)
+        return label_lines
     else:
         empty_label_str = convert_bgr_to_label_str([0, 0, 0], 0)
         return [empty_label_str for _ in range(g_max_num_circles)]
