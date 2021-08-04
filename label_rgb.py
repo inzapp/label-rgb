@@ -10,12 +10,11 @@ g_win_size = (768, 768)
 g_win_name = 'Label RGB v2.0 by Inzapp'
 
 
-def get_next_circle_index():
+def increase_circle_index():
     global g_max_num_circles, g_circle_index
     g_circle_index += 1
     if g_circle_index == g_max_num_circles:
         g_circle_index = 0
-    return g_circle_index
 
 
 def is_cursor_in_image(x):
@@ -52,12 +51,12 @@ def convert_bgr_to_label_str(bgr, confidence):
     return f'{confidence:.1f} {r:.6f} {g:.6f} {b:.6f}\n'
 
 
-def set_circle_to_side_pan_and_save_label(cur_x, cur_y):
-    global g_view, g_label_lines
+def set_circle(cur_x, cur_y):
+    global g_view, g_label_lines, g_circle_index
     bgr = g_view[cur_y][cur_x] / 255.0
-    circle_index = get_next_circle_index()
-    g_view = set_circle_to_side_pan(g_view, bgr, circle_index)
-    g_label_lines[circle_index] = convert_bgr_to_label_str(bgr, 1.0)
+    g_label_lines[g_circle_index] = convert_bgr_to_label_str(bgr, 1)
+    update_side_pan()
+    increase_circle_index()
     cv2.imshow(g_win_name, g_view)
 
 
@@ -80,14 +79,9 @@ def hover(circle_index):
 
 def remove_circle_if_exist(circle_index):
     global g_side_pan_circle_positions, g_raw, g_view, g_circle_index, g_win_name, g_label_lines
-    circle_position = g_side_pan_circle_positions[circle_index]
-    x1, y1, x2, y2 = circle_position
-    default_image = g_raw[y1:y2, x1:x2]
-    for y in range(y1, y2):
-        for x in range(x1, x2):
-            g_view[y][x] = default_image[y - y1][x - x1]
-    g_label_lines[circle_index] = convert_bgr_to_label_str([0, 0, 0], 0.0)
-    g_circle_index = circle_index - 1
+    g_label_lines[circle_index] = convert_bgr_to_label_str([0, 0, 0], 0)
+    update_side_pan()
+    g_circle_index = circle_index
     cv2.imshow(g_win_name, g_view)
 
 
@@ -107,7 +101,7 @@ def mouse_callback(event, cur_x, cur_y, flag, _):
     # end left click
     elif event == 4 and flag == 0:
         if is_cursor_in_image(cur_x):
-            set_circle_to_side_pan_and_save_label(cur_x, cur_y)
+            set_circle(cur_x, cur_y)
             save_label()
 
     # right click
@@ -145,20 +139,23 @@ def save_label():
         f.writelines(label_str)
 
 
-def set_circle_to_side_pan(img, bgr, circle_index):
-    global g_label_path
-    b, g, r = bgr
-    b = int(b * 255)
-    g = int(g * 255)
-    r = int(r * 255)
-    if circle_index == 0:
-        circle_cy = int(g_win_size[1] * 0.2)
-        img = cv2.circle(img, (g_side_pan_circle_cx, circle_cy), g_side_pan_circle_radius, (b, g, r), thickness=-1)
-
-    if circle_index == 1:
-        circle_cy = int(g_win_size[1] * 0.8)
-        img = cv2.circle(img, (g_side_pan_circle_cx, circle_cy), g_side_pan_circle_radius, (b, g, r), thickness=-1)
-    return img
+def update_side_pan():
+    global g_raw, g_view, g_label_lines, g_side_pan_circle_cys, g_side_pan_circle_positions
+    for circle_index, label_line in enumerate(g_label_lines):
+        confidence, r, g, b = list(map(float, label_line.split()))
+        if confidence == 1.0:
+            r = int(r * 255)
+            g = int(g * 255)
+            b = int(b * 255)
+            circle_cy = g_side_pan_circle_cys[circle_index]
+            g_view = cv2.circle(g_view, (g_side_pan_circle_cx, circle_cy), g_side_pan_circle_radius, (b, g, r), thickness=-1)
+        elif confidence == 0.0:
+            circle_position = g_side_pan_circle_positions[circle_index]
+            x1, y1, x2, y2 = circle_position
+            default_image = g_raw[y1:y2, x1:x2]
+            for y in range(y1, y2):
+                for x in range(x1, x2):
+                    g_view[y][x] = default_image[y - y1][x - x1]
 
 
 def load_saved_rgbs_if_exist(label_path):
@@ -175,22 +172,10 @@ def load_saved_rgbs_if_exist(label_path):
 
 
 def get_g_side_pan_circle_positions():
-    global g_max_num_circles, g_side_pan_circle_radius
-    cys = []
-    if g_max_num_circles == 1:
-        cys = [0.5]
-    elif g_max_num_circles == 2:
-        cys = [0.2, 0.8]
-    else:
-        print('not implemented : g_max_num_circles > 2')
-        exit(0)
-    cys = np.asarray(cys) * g_win_size[1]
-
+    global g_side_pan_circle_radius, g_side_pan_circle_cx, g_side_pan_circle_cys
     cx = g_side_pan_circle_cx
-    cys = cys.astype('int32')
-
     positions = []
-    for cy in cys:
+    for cy in g_side_pan_circle_cys:
         x1 = int(cx - g_side_pan_circle_radius)
         y1 = int(cy - g_side_pan_circle_radius)
         x2 = int(cx + g_side_pan_circle_radius)
@@ -199,12 +184,26 @@ def get_g_side_pan_circle_positions():
     return positions
 
 
+def get_g_side_pan_circle_cys():
+    cys = []
+    if g_max_num_circles == 1:
+        cys = [0.5]
+    elif g_max_num_circles == 2:
+        cys = [0.2, 0.8]
+    else:
+        print(f'not implemented. g_max_num_circles = {g_max_num_circles}')
+        exit(0)
+    cys = np.asarray(cys) * g_win_size[1]
+    cys = list(cys.astype('int32'))
+    return cys
+
+
 def get_label_lines(label_path):
     if os.path.exists(label_path) and os.path.isfile(label_path):
         with open(label_path, 'rt') as f:
             return f.readlines()
     else:
-        empty_label_str = '0.0 0.000000 0.000000 0.000000\n'
+        empty_label_str = convert_bgr_to_label_str([0, 0, 0], 0)
         return [empty_label_str for _ in range(g_max_num_circles)]
 
 
@@ -221,14 +220,14 @@ if len(img_paths) == 0:
 
 g_side_pan = side_pan()
 g_side_pan_width = g_side_pan.shape[1]
-g_side_pan_height = g_side_pan.shape[0]
 g_side_pan_circle_radius = int(g_side_pan_width / 2)
 g_side_pan_circle_cx = g_win_size[0] + int((g_win_size[0] / 5) / 2)
+g_side_pan_circle_cys = get_g_side_pan_circle_cys()
 g_side_pan_circle_positions = get_g_side_pan_circle_positions()
 
 index = 0
 while True:
-    g_circle_index = -1
+    g_circle_index = 0
     file_path = img_paths[index]
     g_label_path = f'{file_path[:-4]}.txt'
     g_label_lines = get_label_lines(g_label_path)
@@ -239,7 +238,7 @@ while True:
     g_rgbs = load_saved_rgbs_if_exist(g_label_path)
     if g_rgbs is not None:
         for i in range(len(g_rgbs)):
-            g_view = set_circle_to_side_pan(g_view, g_rgbs[i], i)
+            update_side_pan()
     cv2.namedWindow(g_win_name)
     cv2.imshow(g_win_name, g_view)
     cv2.setMouseCallback(g_win_name, mouse_callback)
