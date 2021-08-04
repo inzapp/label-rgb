@@ -23,10 +23,10 @@ def is_cursor_in_image(x):
     return x < g_win_size[0]
 
 
-def is_cursor_in_circle(x, y):
+def is_cursor_in_circle(cur_x, cur_y):
     global g_side_pan_circle_positions
     for x1, y1, x2, y2 in g_side_pan_circle_positions:
-        if x1 <= x <= x2 and y1 <= y <= y2:
+        if x1 <= cur_x <= x2 and y1 <= cur_y <= y2:
             return True
     return False
 
@@ -42,9 +42,9 @@ def show_cursor_color(cur_x, cur_y):
         x = cur_x - radius
     if cur_y < radius:
         y = cur_y + radius
-    raw_copy = g_view.copy()
-    raw_copy = cv2.circle(raw_copy, (x, y), radius, (int(bgr[0]), int(bgr[1]), int(bgr[2])), thickness=-1)
-    cv2.imshow(g_win_name, raw_copy)
+    g_view_copy = g_view.copy()
+    g_view_copy = cv2.circle(g_view_copy, (x, y), radius, (int(bgr[0]), int(bgr[1]), int(bgr[2])), thickness=-1)
+    cv2.imshow(g_win_name, g_view_copy)
 
 
 def set_circle_to_side_pan_and_save_label(cur_x, cur_y):
@@ -69,18 +69,27 @@ def get_circle_index_at_cursor(cur_x, cur_y):
 def hover(circle_index):
     global g_side_pan_circle_positions
     x1, y1, x2, y2 = g_side_pan_circle_positions[circle_index]
-    raw_copy = g_view.copy()
-    cv2.rectangle(raw_copy, (x1, y1), (x2, y2), (0, 0, 255), thickness=2)
-    cv2.imshow(g_win_name, raw_copy)
+    g_view_copy = g_view.copy()
+    cv2.rectangle(g_view_copy, (x1, y1), (x2, y2), (0, 0, 255), thickness=2)
+    cv2.imshow(g_win_name, g_view_copy)
+
+
+def cover(view, default_image, position):
+    x1, y1, x2, y2 = position
+    for y in range(y1, y2):
+        for x in range(x1, x2):
+            view[y][x] = default_image[y - y1][x - x1]
+    return view
 
 
 def remove_circle_if_exist(circle_index):
-    global g_side_pan_circle_positions, g_raw, g_view
-    x1, y1, x2, y2 = g_side_pan_circle_positions[circle_index]
+    global g_side_pan_circle_positions, g_raw, g_view, g_circle_index, g_win_name
+    circle_position = g_side_pan_circle_positions[circle_index]
+    x1, y1, x2, y2 = circle_position
     default_image = g_raw[y1:y2, x1:x2]
-    for y in range(y1, y2):
-        for x in range(x1, x2):
-            g_view[y][x] = default_image[y-y1][x-x1]
+    g_view = cover(g_view, default_image, circle_position)
+    g_circle_index = circle_index - 1
+    cv2.imshow(g_win_name, g_view)
 
 
 def mouse_callback(event, cur_x, cur_y, flag, _):
@@ -235,22 +244,26 @@ while True:
     cv2.namedWindow(g_win_name)
     cv2.imshow(g_win_name, g_view)
     cv2.setMouseCallback(g_win_name, mouse_callback)
-    res = cv2.waitKey(0)
 
-    # go to next if input key was 'd'
-    if res == ord('d'):
-        if index == len(img_paths) - 1:
-            print('Current image is last image')
-        else:
-            index += 1
+    while True:
+        res = cv2.waitKey(0)
 
-    # go to previous image if input key was 'a'
-    elif res == ord('a'):
-        if index == 0:
-            print('Current image is first image')
-        else:
-            index -= 1
+        # go to next if input key was 'd'
+        if res == ord('d'):
+            if index == len(img_paths) - 1:
+                print('Current image is last image')
+            else:
+                index += 1
+                break
 
-    # exit if input key was ESC
-    elif res == 27:
-        exit(0)
+        # go to previous image if input key was 'a'
+        elif res == ord('a'):
+            if index == 0:
+                print('Current image is first image')
+            else:
+                index -= 1
+                break
+
+        # exit if input key was ESC
+        elif res == 27:
+            exit(0)
