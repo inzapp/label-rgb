@@ -34,27 +34,27 @@ def is_cursor_in_circle(x, y):
 def show_cursor_color(cur_x, cur_y):
     global g_win_size
     radius = int(min(g_win_size[0], g_win_size[1]) * 0.125)
-    raw_height, raw_width = g_raw.shape[0], g_raw.shape[1]
-    bgr = g_raw[cur_y][cur_x]
+    raw_height, raw_width = g_view.shape[0], g_view.shape[1]
+    bgr = g_view[cur_y][cur_x]
     x = cur_x + radius
     y = cur_y - radius
     if cur_x > raw_width - radius:
         x = cur_x - radius
     if cur_y < radius:
         y = cur_y + radius
-    raw_copy = g_raw.copy()
+    raw_copy = g_view.copy()
     raw_copy = cv2.circle(raw_copy, (x, y), radius, (int(bgr[0]), int(bgr[1]), int(bgr[2])), thickness=-1)
     cv2.imshow(g_win_name, raw_copy)
 
 
 def set_circle_to_side_pan_and_save_label(cur_x, cur_y):
-    global g_raw
-    bgr = g_raw[cur_y][cur_x] / 255.0
+    global g_view
+    bgr = g_view[cur_y][cur_x] / 255.0
     rgb = [bgr[2], bgr[1], bgr[0]]
     circle_index = get_next_circle_index()
-    g_raw = set_circle_to_side_pan(g_raw, rgb, circle_index)
+    g_view = set_circle_to_side_pan(g_view, rgb, circle_index)
     save_label(g_label_path, rgb, circle_index)
-    cv2.imshow(g_win_name, g_raw)
+    cv2.imshow(g_win_name, g_view)
 
 
 def get_circle_index_at_cursor(cur_x, cur_y):
@@ -69,13 +69,22 @@ def get_circle_index_at_cursor(cur_x, cur_y):
 def hover(circle_index):
     global g_side_pan_circle_positions
     x1, y1, x2, y2 = g_side_pan_circle_positions[circle_index]
-    raw_copy = g_raw.copy()
+    raw_copy = g_view.copy()
     cv2.rectangle(raw_copy, (x1, y1), (x2, y2), (0, 0, 255), thickness=2)
     cv2.imshow(g_win_name, raw_copy)
 
 
+def remove_circle_if_exist(circle_index):
+    global g_side_pan_circle_positions, g_raw, g_view
+    x1, y1, x2, y2 = g_side_pan_circle_positions[circle_index]
+    default_image = g_raw[y1:y2, x1:x2]
+    for y in range(y1, y2):
+        for x in range(x1, x2):
+            g_view[y][x] = default_image[y-y1][x-x1]
+
+
 def mouse_callback(event, cur_x, cur_y, flag, _):
-    global g_raw
+    global g_view
 
     # no click mouse moving
     if event == 0 and flag == 0:
@@ -85,7 +94,7 @@ def mouse_callback(event, cur_x, cur_y, flag, _):
             circle_index_at_cursor = get_circle_index_at_cursor(cur_x, cur_y)
             hover(circle_index_at_cursor)
         else:
-            cv2.imshow(g_win_name, g_raw)
+            cv2.imshow(g_win_name, g_view)
 
     # end left click
     elif event == 4 and flag == 0:
@@ -95,7 +104,8 @@ def mouse_callback(event, cur_x, cur_y, flag, _):
     # right click
     elif event == 5 and flag == 0:
         if is_cursor_in_circle(cur_x, cur_y):
-            pass
+            circle_index_at_cursor = get_circle_index_at_cursor(cur_x, cur_y)
+            remove_circle_if_exist(circle_index_at_cursor)
 
 
 def side_pan():
@@ -117,8 +127,8 @@ def side_pan():
 
 
 def save_label(label_path, rgb, circle_index):
-    # confidence = rgb[0]
-    r, g, b = rgb[0], rgb[1], rgb[2]
+    # confidence, r, g, b = rgb
+    r, g, b = rgb
     label_str = f'{r:.6f} {g:.6f} {b:.6f}\n'
     if not (os.path.exists(label_path) and os.path.isfile(label_path)):
         with open(label_path, 'wt') as f:
@@ -217,12 +227,13 @@ while True:
     g_raw = cv2.imread(file_path, cv2.IMREAD_COLOR)
     g_raw = cv2.resize(g_raw, g_win_size)
     g_raw = np.concatenate((g_raw, g_side_pan), axis=1)
+    g_view = g_raw.copy()
     g_rgbs = load_saved_rgbs_if_exist(g_label_path)
     if g_rgbs is not None:
         for i in range(len(g_rgbs)):
-            g_raw = set_circle_to_side_pan(g_raw, g_rgbs[i], i)
+            g_view = set_circle_to_side_pan(g_view, g_rgbs[i], i)
     cv2.namedWindow(g_win_name)
-    cv2.imshow(g_win_name, g_raw)
+    cv2.imshow(g_win_name, g_view)
     cv2.setMouseCallback(g_win_name, mouse_callback)
     res = cv2.waitKey(0)
 
@@ -242,4 +253,4 @@ while True:
 
     # exit if input key was ESC
     elif res == 27:
-        sys.exit()
+        exit(0)
