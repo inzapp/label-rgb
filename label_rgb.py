@@ -215,6 +215,71 @@ def get_label_lines(label_path):
         return [empty_label_str for _ in range(g_max_num_circles)]
 
 
+def get_color_image(bgr, width, height):
+    img = np.asarray(bgr).astype('uint8').reshape((1, 1, 3))
+    img = cv2.resize(img, (width, height), interpolation=cv2.INTER_NEAREST)
+    return img
+
+
+def get_color_table_img(color_table, cell_width, cell_height):
+    color_table_img = None
+    for bgr in color_table:
+        color_image = get_color_image(bgr, cell_width, cell_height)
+        if color_table_img is None:
+            color_table_img = color_image
+        else:
+            color_table_img = np.concatenate((color_table_img, color_image), axis=1)
+    return color_table_img
+
+
+def add_color_table_on_top(view):
+    global g_win_size
+    # color_table = []
+    # for b in range(0, 256, 60):
+    #     for g in range(0, 256, 60):
+    #         for r in range(0, 256, 60):
+    #             print(b, g, r)
+    #             color_table.append([b, g, r])
+    # print(len(color_table))
+
+    # b, g, r
+    color_table = [
+        [255, 255, 255],  # white
+        [192, 192, 192],  # light gray
+        [127, 127, 127],  # gray
+        [80, 80, 80],  # dark gray
+        [0, 0, 0],  # black
+        [164, 164, 255],  # light red
+        [0, 0, 255],  # red
+        [0, 0, 150],  # dark red
+        [255, 160, 160],  # blue
+        [255, 0, 0],  # blue
+        [150, 0, 0],  # dark blue
+        [150, 255, 150],  # light green
+        [0, 255, 0],  # green
+        [0, 150, 0],  # dark green
+        [0, 255, 255],  # yellow
+        [0, 128, 128],  # dark yellow
+        [0, 90, 180],  # brown
+        [0, 50, 100],  # dark brown
+        [255, 128, 128],  # pastel purple
+        [255, 150, 255],  # pastel pink
+        [128, 170, 255],  # pastel orange
+    ]
+
+    cell_width = int(min(g_win_size) * 0.04)
+    cell_height = cell_width
+
+    color_table_img = get_color_table_img(color_table, cell_width, cell_height)
+    color_table_img_height = color_table_img.shape[0]
+    color_table_img_width = color_table_img.shape[1]
+
+    for row in range(color_table_img_height):
+        for col in range(color_table_img_width):
+            view[row][col] = color_table_img[row][col]
+    return view
+
+
 path = ''
 if len(sys.argv) > 1:
     path = sys.argv[1].replace('\\', '/') + '/'
@@ -243,6 +308,7 @@ while True:
     g_raw = cv2.resize(g_raw, g_win_size)
     g_raw = np.concatenate((g_raw, g_side_pan), axis=1)
     g_view = g_raw.copy()
+    g_view = add_color_table_on_top(g_view)
     g_rgbs = load_saved_rgbs_if_exist(g_label_path)
     if g_rgbs is not None:
         for i in range(len(g_rgbs)):
