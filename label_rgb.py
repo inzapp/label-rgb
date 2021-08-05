@@ -245,29 +245,20 @@ def add_color_table_on_top(view):
     # b, g, r
     color_table = [
         [255, 255, 255],  # white
-        [192, 192, 192],  # light gray
-        [127, 127, 127],  # gray
-        [80, 80, 80],  # dark gray
         [0, 0, 0],  # black
-        [164, 164, 255],  # light red
         [0, 0, 255],  # red
-        [0, 0, 150],  # dark red
-        [255, 160, 160],  # blue
-        [255, 0, 0],  # blue
-        [150, 0, 0],  # dark blue
+        [112, 58, 0],  # dark cobalt blue
+        [180, 70, 40],  # truck blue
         [150, 255, 150],  # light green
         [0, 255, 0],  # green
         [0, 150, 0],  # dark green
         [0, 255, 255],  # yellow
-        [0, 128, 128],  # dark yellow
         [0, 90, 180],  # brown
         [0, 50, 100],  # dark brown
-        [255, 128, 128],  # pastel purple
-        [255, 150, 255],  # pastel pink
         [128, 170, 255],  # pastel orange
     ]
 
-    cell_width = int(min(g_win_size) * 0.04)
+    cell_width = int(min(g_win_size) * 0.05)
     cell_height = cell_width
 
     color_table_img = get_color_table_img(color_table, cell_width, cell_height)
