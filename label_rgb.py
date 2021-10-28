@@ -293,6 +293,7 @@ index = 0
 while True:
     g_circle_index = 0
     file_path = img_paths[index]
+    print(file_path)
     g_label_path = f'{file_path[:-4]}.txt'
     g_label_lines = get_label_lines(g_label_path)
     g_raw = cv2.imread(file_path, cv2.IMREAD_COLOR)
