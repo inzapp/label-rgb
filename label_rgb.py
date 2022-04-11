@@ -1,5 +1,6 @@
 import os
 import sys
+import natsort
 from glob import glob
 
 import cv2
@@ -278,6 +279,7 @@ if len(sys.argv) > 1:
 jpg_file_paths = glob(f'{path}*.jpg')
 png_file_paths = glob(f'{path}*.png')
 img_paths = jpg_file_paths + png_file_paths
+img_paths = natsort.natsorted(img_paths)
 if len(img_paths) == 0:
     print('No image files in path. run label.py with path argument')
     exit(0)
